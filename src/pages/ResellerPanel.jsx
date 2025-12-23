@@ -45,32 +45,42 @@ const LoginScreen = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    try {
-      const response = await fetch(`${API_URL}/auth/reseller/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
+  try {
+    const response = await fetch(`${API_URL}/auth/reseller/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
 
-      const data = await response.json();
+    const contentType = response.headers.get('content-type');
 
-      if (response.ok) {
-        localStorage.setItem('reseller_token', data.token);
-        localStorage.setItem('reseller_user', JSON.stringify(data.user));
-        onLogin(data.token);
-      } else {
-        setError(data.error || 'Error al iniciar sesión');
-      }
-    } catch (err) {
-      setError('Error de conexión con el servidor');
-    } finally {
-      setLoading(false);
+    let data;
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = { error: await response.text() };
     }
-  };
+
+    if (response.ok) {
+      localStorage.setItem('reseller_token', data.token);
+      localStorage.setItem('reseller_user', JSON.stringify(data.user));
+      onLogin(data.token);
+    } else {
+      console.error('❌ Error login:', data);
+      setError(data.error || `Error del servidor (${response.status})`);
+    }
+  } catch (err) {
+    console.error('❌ Error de conexión:', err);
+    setError('Error de conexión con el servidor');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-700 flex items-center justify-center p-4">
