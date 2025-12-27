@@ -3,7 +3,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { Smartphone, Key, Activity, Plus, Lock, Unlock, MapPin, Search, X, QrCode, Trash2, Eye, AlertCircle, Battery, Wifi, Clock, Navigation } from 'lucide-react';
 
 // Configuración de la API
-const API_URL = 'https://mdm-backend-production-bd3f.up.railway.app/api';
+const API_URL = 'https://app.solvenca.lat/api';
 
 // Componente principal
 const ResellerPanel = () => {

@@ -3,7 +3,7 @@ import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { Users, Smartphone, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, AlertCircle } from 'lucide-react';
 
 // Configuración de la API
-const API_URL = 'https://mdm-backend-production-bd3f.up.railway.app/api';
+const API_URL = 'https://app.solvenca.lat/api';
 
 // Componente principal
 const SuperAdminPanel = () => {
