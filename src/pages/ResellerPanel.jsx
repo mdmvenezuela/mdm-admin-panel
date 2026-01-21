@@ -45,42 +45,41 @@ const LoginScreen = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    const response = await fetch(`${API_URL}/auth/reseller/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
+    try {
+      const response = await fetch(`${API_URL}/auth/reseller/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
 
-    const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type');
 
-    let data;
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      data = { error: await response.text() };
+      let data;
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = { error: await response.text() };
+      }
+
+      if (response.ok) {
+        localStorage.setItem('reseller_token', data.token);
+        localStorage.setItem('reseller_user', JSON.stringify(data.user));
+        onLogin(data.token);
+      } else {
+        console.error('❌ Error login:', data);
+        setError(data.error || `Error del servidor (${response.status})`);
+      }
+    } catch (err) {
+      console.error('❌ Error de conexión:', err);
+      setError('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
     }
-
-    if (response.ok) {
-      localStorage.setItem('reseller_token', data.token);
-      localStorage.setItem('reseller_user', JSON.stringify(data.user));
-      onLogin(data.token);
-    } else {
-      console.error('❌ Error login:', data);
-      setError(data.error || `Error del servidor (${response.status})`);
-    }
-  } catch (err) {
-    console.error('❌ Error de conexión:', err);
-    setError('Error de conexión con el servidor');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-700 flex items-center justify-center p-4">
@@ -289,7 +288,6 @@ const Dashboard = ({ token }) => {
 
   return (
     <div className="space-y-6">
-      {/* Alerta si quedan pocas licencias */}
       {licensesAvailable < 3 && licensesAvailable > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg flex items-center gap-2">
           <AlertCircle className="w-5 h-5" />
@@ -365,7 +363,14 @@ const Devices = ({ token }) => {
   };
 
   const handleLockDevice = async (deviceId) => {
-    if (!confirm('¿Estás seguro de bloquear este dispositivo?')) return;
+    const device = devices.find(d => d.id === deviceId);
+    
+    const customMessage = prompt(
+      `¿Deseas agregar un mensaje personalizado?\n\n(Deja en blanco para usar el mensaje por defecto con la info de contacto)`,
+      ''
+    );
+    
+    if (customMessage === null) return;
 
     try {
       const response = await fetch(`${API_URL}/reseller/device/${deviceId}/lock`, {
@@ -375,15 +380,17 @@ const Devices = ({ token }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: 'Dispositivo bloqueado. Contacte al proveedor para más información.'
+          message: customMessage || undefined
         })
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        alert('Dispositivo bloqueado exitosamente');
+        alert(`✅ Dispositivo bloqueado exitosamente\n\nEl cliente verá el mensaje en su pantalla de bloqueo.`);
         fetchDevices();
       } else {
-        alert('Error bloqueando dispositivo');
+        alert(data.error || 'Error bloqueando dispositivo');
       }
     } catch (err) {
       alert('Error de conexión');
@@ -394,14 +401,37 @@ const Devices = ({ token }) => {
     try {
       const response = await fetch(`${API_URL}/reseller/device/${deviceId}/unlock`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        alert('Dispositivo desbloqueado exitosamente');
+        const device = devices.find(d => d.id === deviceId);
+        const message = `🔓 DISPOSITIVO DESBLOQUEADO
+
+Código de desbloqueo: ${data.unlock_code}
+
+📞 Comunica este código al cliente:
+${device?.client_name || 'Cliente'}
+${device?.client_phone || ''}
+
+El cliente debe ingresar este código en el dispositivo para desbloquearlo.`;
+        
+        alert(message);
+        
+        // Copiar al portapapeles automáticamente
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(data.unlock_code);
+          setTimeout(() => alert('✅ Código copiado al portapapeles'), 100);
+        }
+        
         fetchDevices();
       } else {
-        alert('Error desbloqueando dispositivo');
+        alert(data.error || 'Error desbloqueando dispositivo');
       }
     } catch (err) {
       alert('Error de conexión');
@@ -493,9 +523,17 @@ const Devices = ({ token }) => {
                     <h3 className="font-semibold text-gray-800">{device.client_name || 'Sin nombre'}</h3>
                     <p className="text-sm text-gray-600">{device.client_phone || 'Sin teléfono'}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(device.status)}`}>
-                    {device.status}
-                  </span>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(device.status)}`}>
+                      {device.status}
+                    </span>
+                    {device.google_device_name && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center gap-1" title="Android Enterprise">
+                        <Smartphone className="w-3 h-3" />
+                        AE
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2 text-sm mb-4">
@@ -600,28 +638,6 @@ const Devices = ({ token }) => {
 
 // Modal de Detalle del Dispositivo
 const DeviceDetailModal = ({ device, token, onClose }) => {
-  const [locationHistory, setLocationHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLocationHistory();
-  }, []);
-
-  const fetchLocationHistory = async () => {
-    try {
-      const response = await fetch(
-        `${API_URL}/reseller/device/${device.id}/location/history?days=7`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      const data = await response.json();
-      setLocationHistory(data.history || []);
-    } catch (err) {
-      console.error('Error fetching location history:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -656,12 +672,34 @@ const DeviceDetailModal = ({ device, token, onClose }) => {
             </div>
           </div>
 
+          {/* Información de Android Enterprise */}
+          {device.google_device_name && (
+            <div className="bg-purple-50 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <Smartphone className="w-5 h-5" />
+                Información de Android Enterprise
+              </h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Device Name</p>
+                  <p className="font-mono text-xs break-all">{device.google_device_name}</p>
+                </div>
+                {device.unlock_code && (
+                  <div>
+                    <p className="text-gray-600">Código de Desbloqueo Activo</p>
+                    <p className="font-bold text-green-600 text-lg">{device.unlock_code}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Ubicación Actual */}
           {device.last_location_lat && device.last_location_lon && (
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
-                Última Ubicación Conocida
+                Ubicación Actual
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -683,61 +721,18 @@ const DeviceDetailModal = ({ device, token, onClose }) => {
                   <p className="font-medium">{device.battery_level || 0}%</p>
                 </div>
               </div>
-              <a
-                href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                <Navigation className="w-4 h-4" />
-                Ver en Google Maps
-              </a>
+              
+                <a
+  href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+>
+  <Navigation className="w-4 h-4" />
+  Ver en Google Maps
+</a>
             </div>
           )}
-
-          {/* Historial de Ubicaciones */}
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-3">Historial de Ubicaciones (Últimos 7 días)</h4>
-            {loading ? (
-              <p className="text-gray-600">Cargando historial...</p>
-            ) : locationHistory.length === 0 ? (
-              <p className="text-gray-600">No hay historial disponible</p>
-            ) : (
-              <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Fecha/Hora</th>
-                      <th className="px-4 py-2 text-left">Latitud</th>
-                      <th className="px-4 py-2 text-left">Longitud</th>
-                      <th className="px-4 py-2 text-left">Batería</th>
-                      <th className="px-4 py-2 text-left">Ver</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {locationHistory.map((loc, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">{new Date(loc.recorded_at).toLocaleString()}</td>
-                        <td className="px-4 py-2">{parseFloat(loc.latitude).toFixed(6)}</td>
-                        <td className="px-4 py-2">{parseFloat(loc.longitude).toFixed(6)}</td>
-                        <td className="px-4 py-2">{loc.battery_level || 'N/A'}%</td>
-                        <td className="px-4 py-2">
-                          <a
-                            href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            <MapPin className="w-4 h-4" />
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
@@ -791,7 +786,7 @@ const EnrollDevice = ({ token }) => {
             <QrCode className="w-12 h-12 text-purple-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Enrolar Nuevo Dispositivo</h2>
-          <p className="text-gray-600">Genera un código QR para activar un dispositivo nuevo</p>
+          <p className="text-gray-600">Genera un código QR para activar un dispositivo con Android Enterprise</p>
         </div>
 
         {error && (
@@ -808,9 +803,9 @@ const EnrollDevice = ({ token }) => {
               <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
                 <li>Asegúrate de tener licencias disponibles</li>
                 <li>Haz clic en "Generar Código QR"</li>
-                <li>En el dispositivo Android NUEVO (factory reset), toca 5-6 veces en la pantalla de bienvenida</li>
+                <li>En el dispositivo Android NUEVO (factory reset), toca 6 veces en la pantalla de bienvenida</li>
                 <li>Escanea el código QR que aparecerá aquí</li>
-                <li>El dispositivo se enrolará automáticamente</li>
+                <li>El dispositivo descargará Android Device Policy y se enrolará automáticamente</li>
               </ol>
             </div>
 
@@ -827,7 +822,7 @@ const EnrollDevice = ({ token }) => {
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <p className="text-green-800">
-                ✅ Código QR generado exitosamente. Expira en 24 horas.
+                ✅ Código QR generado exitosamente con Android Enterprise. Expira en 24 horas.
               </p>
             </div>
 
@@ -945,8 +940,8 @@ const DevicesMap = ({ token }) => {
                   </div>
                 </div>
 
-                <a
-                  href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
+                
+                  <a href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
