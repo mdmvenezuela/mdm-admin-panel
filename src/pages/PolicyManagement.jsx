@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Lock, Smartphone, Wifi, Camera, AlertCircle, Save, Plus, Edit, Trash2, Copy, Eye, EyeOff, Settings } from 'lucide-react';
+import { Shield, Lock, Smartphone, Wifi, Camera, AlertCircle, Save, X, Plus, Edit, Trash2, Copy, Eye, EyeOff, Settings } from 'lucide-react';
 
 const API_URL = 'https://app.solvenca.lat/api';
 
