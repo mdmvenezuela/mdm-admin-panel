@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Smartphone, Key, Activity, Plus, Lock, Unlock, MapPin, Search, X, QrCode, Trash2, Eye, AlertCircle, Battery, Wifi, Clock, Navigation } from 'lucide-react';
+import { X, Smartphone, Key, Activity, Plus, Lock, Unlock, MapPin, Search, X, QrCode, Trash2, Eye, AlertCircle, Battery, Wifi, Clock, Navigation } from 'lucide-react';
 
 // Configuración de la API
 const API_URL = 'https://app.solvenca.lat/api';
@@ -637,104 +637,472 @@ El cliente debe ingresar este código en el dispositivo para desbloquearlo.`;
 };
 
 // Modal de Detalle del Dispositivo
-const DeviceDetailModal = ({ device, token, onClose }) => {
+const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
+  const [deviceDetail, setDeviceDetail] = useState(null);
+  const [policies, setPolicies] = useState([]);
+  const [selectedPolicy, setSelectedPolicy] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('info');
+
+  useEffect(() => {
+    fetchDeviceDetail();
+    fetchAvailablePolicies();
+  }, [device.id]);
+
+  const fetchDeviceDetail = async () => {
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/detail`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setDeviceDetail(data.device);
+      
+      // Si tiene política actual, seleccionarla
+      if (data.device.google_info?.policyName) {
+        setSelectedPolicy(data.device.google_info.policyName);
+      }
+    } catch (error) {
+      console.error('Error obteniendo detalles:', error);
+    }
+  };
+
+  const fetchAvailablePolicies = async () => {
+    try {
+      const response = await fetch(`${API_URL}/reseller/policies/available`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setPolicies(data.policies || []);
+    } catch (error) {
+      console.error('Error obteniendo políticas:', error);
+    }
+  };
+
+  const handleChangePolicy = async () => {
+    if (!selectedPolicy) {
+      alert('Selecciona una política');
+      return;
+    }
+
+    if (!confirm('¿Cambiar la política de este dispositivo? Los cambios se aplicarán en el próximo sync.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/change-policy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ policyName: selectedPolicy })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('✅ Política cambiada exitosamente\n\nLos cambios se aplicarán en el próximo sync del dispositivo (puede tomar unos minutos)');
+        fetchDeviceDetail();
+        if (onRefresh) onRefresh();
+      } else {
+        alert(`Error: ${data.error || 'No se pudo cambiar la política'}`);
+      }
+    } catch (error) {
+      alert('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReboot = async () => {
+    if (!confirm('¿Reiniciar este dispositivo? El dispositivo se reiniciará remotamente.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/reboot`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('✅ Comando de reinicio enviado\n\nEl dispositivo se reiniciará en unos momentos.');
+      } else {
+        alert(`Error: ${data.error || 'No se pudo reiniciar'}`);
+      }
+    } catch (error) {
+      alert('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleInfo = deviceDetail?.google_info;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-gray-800">Detalles del Dispositivo</h3>
+      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Detalles del Dispositivo</h3>
+            <p className="text-sm text-gray-600">{device.client_name || 'Sin nombre'}</p>
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Información del Cliente */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-800 mb-3">Información del Cliente</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Nombre</p>
-                <p className="font-medium">{device.client_name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Teléfono</p>
-                <p className="font-medium">{device.client_phone || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">IMEI</p>
-                <p className="font-medium font-mono">{device.imei}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Estado</p>
-                <p className="font-medium">{device.status}</p>
-              </div>
-            </div>
+        {/* Tabs */}
+        <div className="sticky top-[88px] bg-white border-b border-gray-200 px-6 z-10">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('info')}
+              className={`py-3 px-4 border-b-2 transition-colors ${
+                activeTab === 'info' 
+                  ? 'border-purple-600 text-purple-600 font-semibold' 
+                  : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              📱 Información
+            </button>
+            <button
+              onClick={() => setActiveTab('policy')}
+              className={`py-3 px-4 border-b-2 transition-colors ${
+                activeTab === 'policy' 
+                  ? 'border-purple-600 text-purple-600 font-semibold' 
+                  : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              🛡️ Política
+            </button>
+            <button
+              onClick={() => setActiveTab('actions')}
+              className={`py-3 px-4 border-b-2 transition-colors ${
+                activeTab === 'actions' 
+                  ? 'border-purple-600 text-purple-600 font-semibold' 
+                  : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              ⚡ Acciones
+            </button>
+            {googleInfo && (
+              <button
+                onClick={() => setActiveTab('technical')}
+                className={`py-3 px-4 border-b-2 transition-colors ${
+                  activeTab === 'technical' 
+                    ? 'border-purple-600 text-purple-600 font-semibold' 
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                🔧 Info Técnica
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* Información de Android Enterprise */}
-          {device.google_device_name && (
-            <div className="bg-purple-50 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <Smartphone className="w-5 h-5" />
-                Información de Android Enterprise
-              </h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">Device Name</p>
-                  <p className="font-mono text-xs break-all">{device.google_device_name}</p>
-                </div>
-                {device.unlock_code && (
+        <div className="p-6 space-y-6">
+          {/* Tab: Información */}
+          {activeTab === 'info' && (
+            <>
+              {/* Información del Cliente */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-800 mb-3">Información del Cliente</h4>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-gray-600">Código de Desbloqueo Activo</p>
-                    <p className="font-bold text-green-600 text-lg">{device.unlock_code}</p>
+                    <p className="text-sm text-gray-600">Nombre</p>
+                    <p className="font-medium">{device.client_name || 'N/A'}</p>
                   </div>
-                )}
+                  <div>
+                    <p className="text-sm text-gray-600">Teléfono</p>
+                    <p className="font-medium">{device.client_phone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">IMEI</p>
+                    <p className="font-medium font-mono">{device.imei}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Estado</p>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      device.status === 'ACTIVO' ? 'bg-green-100 text-green-800' : 
+                      device.status === 'BLOQUEADO' ? 'bg-red-100 text-red-800' : 
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {device.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Información de Android Enterprise */}
+              {device.google_device_name && googleInfo && (
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <Smartphone className="w-5 h-5" />
+                    Android Enterprise
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">Estado</p>
+                      <p className="font-medium">{googleInfo.state || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Último Reporte</p>
+                      <p className="font-medium text-xs">
+                        {googleInfo.lastStatusReportTime 
+                          ? new Date(googleInfo.lastStatusReportTime).toLocaleString() 
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Política Actual</p>
+                      <p className="font-medium text-xs break-all">
+                        {googleInfo.policyName ? googleInfo.policyName.split('/').pop() : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Fecha de Enrolamiento</p>
+                      <p className="font-medium text-xs">
+                        {googleInfo.enrollmentTime 
+                          ? new Date(googleInfo.enrollmentTime).toLocaleDateString() 
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Ubicación */}
+              {device.last_location_lat && device.last_location_lon && (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Ubicación Actual
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <p className="text-sm text-gray-600">Latitud</p>
+                      <p className="font-medium">{device.last_location_lat.toFixed(6)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Longitud</p>
+                      <p className="font-medium">{device.last_location_lon.toFixed(6)}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Ver en Google Maps
+                  </a>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Tab: Política */}
+          {activeTab === 'policy' && (
+            <div className="space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h4 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Gestión de Política
+                </h4>
+                <p className="text-sm text-purple-800 mb-4">
+                  Cambia la política de seguridad y configuración de este dispositivo
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Política Actual:
+                </label>
+                <div className="bg-gray-100 rounded-lg p-3 mb-4">
+                  <p className="font-mono text-sm">
+                    {googleInfo?.policyName ? googleInfo.policyName.split('/').pop() : 'Sin política asignada'}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cambiar a:
+                </label>
+                <select
+                  value={selectedPolicy}
+                  onChange={(e) => setSelectedPolicy(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">Selecciona una política</option>
+                  {policies.map(policy => (
+                    <option key={policy.fullName} value={policy.fullName}>
+                      {policy.name} (v{policy.version})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleChangePolicy}
+                disabled={loading || !selectedPolicy}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 font-semibold"
+              >
+                <Shield className="w-5 h-5" />
+                {loading ? 'Cambiando...' : 'Cambiar Política'}
+              </button>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                ⚠️ Los cambios se aplicarán en el próximo sync del dispositivo (puede tomar unos minutos)
               </div>
             </div>
           )}
 
-          {/* Ubicación Actual */}
-          {device.last_location_lat && device.last_location_lon && (
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Ubicación Actual
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Latitud</p>
-                  <p className="font-medium">{device.last_location_lat.toFixed(6)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Longitud</p>
-                  <p className="font-medium">{device.last_location_lon.toFixed(6)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Última Actualización</p>
-                  <p className="font-medium">
-                    {device.last_connection ? new Date(device.last_connection).toLocaleString() : 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Batería</p>
-                  <p className="font-medium">{device.battery_level || 0}%</p>
-                </div>
+          {/* Tab: Acciones */}
+          {activeTab === 'actions' && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-blue-900 mb-2">Acciones Remotas</h4>
+                <p className="text-sm text-blue-800">
+                  Ejecuta comandos remotos en el dispositivo
+                </p>
               </div>
-              
-                <a
-  href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
-  target="_blank"
-  rel="noopener noreferrer"
-  className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
->
-  <Navigation className="w-4 h-4" />
-  Ver en Google Maps
-</a>
+
+              <button
+                onClick={handleReboot}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+              >
+                <RefreshCw className="w-5 h-5" />
+                Reiniciar Dispositivo
+              </button>
+
+              <button
+                onClick={fetchDeviceDetail}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              >
+                <Zap className="w-5 h-5" />
+                Actualizar Información
+              </button>
+
+              <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                <p className="font-semibold mb-2">💡 Otras acciones disponibles:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Bloquear dispositivo (desde la lista principal)</li>
+                  <li>Desbloquear con código (desde la lista principal)</li>
+                  <li>Liberar dispositivo (desde la lista principal)</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Info Técnica */}
+          {activeTab === 'technical' && googleInfo && (
+            <div className="space-y-4">
+              {/* Hardware */}
+              {googleInfo.hardwareInfo && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">💻 Hardware</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-600">Fabricante</p>
+                      <p className="font-medium">{googleInfo.hardwareInfo.manufacturer || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Modelo</p>
+                      <p className="font-medium">{googleInfo.hardwareInfo.model || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Serial Number</p>
+                      <p className="font-medium font-mono text-xs">{googleInfo.hardwareInfo.serialNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">CPU</p>
+                      <p className="font-medium text-xs">{googleInfo.hardwareInfo.cpuInfo || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Software */}
+              {googleInfo.softwareInfo && (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">📱 Software</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-600">Versión Android</p>
+                      <p className="font-medium">{googleInfo.softwareInfo.androidVersion || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Build Number</p>
+                      <p className="font-medium font-mono text-xs">{googleInfo.softwareInfo.androidBuildNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Security Patch</p>
+                      <p className="font-medium text-xs">{googleInfo.softwareInfo.securityPatchLevel || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Memoria */}
+              {googleInfo.memoryInfo && (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">💾 Memoria</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-600">RAM Total</p>
+                      <p className="font-medium">
+                        {googleInfo.memoryInfo.totalRam 
+                          ? `${(googleInfo.memoryInfo.totalRam / (1024**3)).toFixed(2)} GB` 
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Almacenamiento Total</p>
+                      <p className="font-medium">
+                        {googleInfo.memoryInfo.totalInternalStorage 
+                          ? `${(googleInfo.memoryInfo.totalInternalStorage / (1024**3)).toFixed(2)} GB` 
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Apps Instaladas */}
+              {googleInfo.applicationReports && googleInfo.applicationReports.length > 0 && (
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">📲 Aplicaciones Instaladas ({googleInfo.applicationReports.length})</h4>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {googleInfo.applicationReports.slice(0, 10).map((app, idx) => (
+                      <div key={idx} className="bg-white rounded p-2 text-sm">
+                        <p className="font-medium">{app.displayName || app.packageName}</p>
+                        <p className="text-xs text-gray-600 font-mono">{app.packageName}</p>
+                        {app.versionName && (
+                          <p className="text-xs text-gray-500">v{app.versionName}</p>
+                        )}
+                      </div>
+                    ))}
+                    {googleInfo.applicationReports.length > 10 && (
+                      <p className="text-sm text-gray-600 text-center py-2">
+                        ...y {googleInfo.applicationReports.length - 10} apps más
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
+        {/* Footer */}
         <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
           <button
             onClick={onClose}
@@ -743,216 +1111,6 @@ const DeviceDetailModal = ({ device, token, onClose }) => {
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Enrolar Dispositivo (Generar QR)
-const EnrollDevice = ({ token }) => {
-  const [qrData, setQrData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const generateQR = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await fetch(`${API_URL}/reseller/qr/generate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setQrData(data);
-      } else {
-        setError(data.error || 'Error generando QR');
-      }
-    } catch (err) {
-      setError('Error de conexión con el servidor');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
-        <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-purple-100 rounded-full mb-4">
-            <QrCode className="w-12 h-12 text-purple-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Enrolar Nuevo Dispositivo</h2>
-          <p className="text-gray-600">Genera un código QR para activar un dispositivo con Android Enterprise</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {!qrData ? (
-          <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">📱 Instrucciones:</h3>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
-                <li>Asegúrate de tener licencias disponibles</li>
-                <li>Haz clic en "Generar Código QR"</li>
-                <li>En el dispositivo Android NUEVO (factory reset), toca 6 veces en la pantalla de bienvenida</li>
-                <li>Escanea el código QR que aparecerá aquí</li>
-                <li>El dispositivo descargará Android Device Policy y se enrolará automáticamente</li>
-              </ol>
-            </div>
-
-            <button
-              onClick={generateQR}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 font-semibold text-lg"
-            >
-              <QrCode className="w-6 h-6" />
-              {loading ? 'Generando...' : 'Generar Código QR'}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-green-800">
-                ✅ Código QR generado exitosamente con Android Enterprise. Expira en 24 horas.
-              </p>
-            </div>
-
-            <div className="border-4 border-purple-200 rounded-lg p-8 bg-white">
-              <div className="flex justify-center">
-                <img 
-                  src={qrData.qr_code} 
-                  alt="QR Code" 
-                  className="w-80 h-80"
-                />
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Token:</span>
-                <span className="font-mono text-gray-800">{qrData.token.substring(0, 20)}...</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Licencia:</span>
-                <span className="font-mono text-gray-800">{qrData.license_key}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Expira:</span>
-                <span className="text-gray-800">{new Date(qrData.expires_at).toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setQrData(null)}
-                className="flex-1 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Generar Otro QR
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Imprimir QR
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Mapa de Dispositivos
-const DevicesMap = ({ token }) => {
-  const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchDevices();
-  }, []);
-
-  const fetchDevices = async () => {
-    try {
-      const response = await fetch(`${API_URL}/reseller/devices`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setDevices(data.devices || []);
-    } catch (err) {
-      console.error('Error fetching devices:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const devicesWithLocation = devices.filter(d => d.last_location_lat && d.last_location_lon);
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Mapa de Dispositivos</h2>
-        <p className="text-gray-600 mb-6">
-          Dispositivos con ubicación: {devicesWithLocation.length} de {devices.length}
-        </p>
-
-        {loading ? (
-          <div className="text-center py-12">Cargando...</div>
-        ) : devicesWithLocation.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No hay dispositivos con ubicación disponible
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {devicesWithLocation.map(device => (
-              <div key={device.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{device.client_name || 'Sin nombre'}</h3>
-                    <p className="text-sm text-gray-600 font-mono">{device.imei}</p>
-                  </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    device.status === 'ACTIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {device.status}
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-sm mb-4">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <MapPin className="w-4 h-4" />
-                    <span>Lat: {device.last_location_lat.toFixed(6)}, Lon: {device.last_location_lon.toFixed(6)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span>
-                      {device.last_connection ? new Date(device.last_connection).toLocaleString() : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                
-                  <a href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                >
-                  <Navigation className="w-4 h-4" />
-                  Ver en Google Maps
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
