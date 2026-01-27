@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import PolicyManagement from './PolicyManagement';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Users, Smartphone, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, AlertCircle } from 'lucide-react';
+import { Users, Smartphone, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, Shield, AlertCircle } from 'lucide-react';
 
 // Configuración de la API
 const API_URL = 'https://app.solvenca.lat/api';
@@ -30,6 +31,7 @@ const SuperAdminPanel = () => {
           {currentView === 'dashboard' && <Dashboard token={token} />}
           {currentView === 'resellers' && <Resellers token={token} />}
           {currentView === 'devices' && <Devices token={token} />}
+          {currentView === 'policies' && <PolicyManagement token={token} />}
           {currentView === 'statistics' && <Statistics token={token} />}
         </div>
       </div>
@@ -134,6 +136,7 @@ const Sidebar = ({ currentView, setCurrentView, onLogout }) => {
     { id: 'dashboard', icon: Activity, label: 'Dashboard' },
     { id: 'resellers', icon: Users, label: 'Resellers' },
     { id: 'devices', icon: Smartphone, label: 'Dispositivos' },
+     { id: 'policies', icon: Shield, label: 'Políticas' },
     { id: 'statistics', icon: BarChart, label: 'Estadísticas' }
   ];
 
