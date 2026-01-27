@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PolicyManagement from './PolicyManagement';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, BarChart3, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Users, Smartphone, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, Shield, AlertCircle } from 'lucide-react';
 
 // Configuración de la API
@@ -137,7 +137,7 @@ const Sidebar = ({ currentView, setCurrentView, onLogout }) => {
     { id: 'resellers', icon: Users, label: 'Resellers' },
     { id: 'devices', icon: Smartphone, label: 'Dispositivos' },
      { id: 'policies', icon: Shield, label: 'Políticas' },
-    { id: 'statistics', icon: BarChart, label: 'Estadísticas' }
+    { id: 'statistics', icon: BarChart3, label: 'Estadísticas' }
   ];
 
   return (
