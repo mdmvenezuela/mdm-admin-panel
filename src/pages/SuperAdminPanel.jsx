@@ -133,8 +133,8 @@ const LoginScreen = ({ onLogin }) => {
 // Sidebar
 const Sidebar = ({ currentView, setCurrentView, onLogout }) => {
   const menuItems = [
-    { id: 'dashboard', icon: Activity, label: 'Dashboard' },
-    { id: 'resellers', icon: Users, label: 'Resellers' },
+    { id: 'dashboard', icon: Activity, label: 'Inicio' },
+    { id: 'resellers', icon: Users, label: 'Financieras' },
     { id: 'devices', icon: Smartphone, label: 'Dispositivos' },
      { id: 'policies', icon: Shield, label: 'Políticas' },
     { id: 'statistics', icon: BarChart3, label: 'Estadísticas' }
