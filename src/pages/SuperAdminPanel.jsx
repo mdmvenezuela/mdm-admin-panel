@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PolicyManagement from './PolicyManagement';
-import { BarChart, BarChart3, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Users, Smartphone, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, Shield, AlertCircle } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Users, Smartphone, BarChart3, Key, Activity, Plus, Edit, Trash2, Lock, Unlock, MapPin, Search, X, Eye, Shield, AlertCircle } from 'lucide-react';
 
 // Configuración de la API
 const API_URL = 'https://app.solvenca.lat/api';
