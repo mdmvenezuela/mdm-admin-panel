@@ -644,10 +644,20 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
   const [selectedPolicy, setSelectedPolicy] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('info');
+  
+  // Estados para edición de cliente
+  const [isEditingClient, setIsEditingClient] = useState(false);
+  const [clientName, setClientName] = useState(device.client_name || '');
+  const [clientPhone, setClientPhone] = useState(device.client_phone || '');
+  
+  // Estados para ubicación
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [frequentPlaces, setFrequentPlaces] = useState([]);
 
   useEffect(() => {
     fetchDeviceDetail();
     fetchAvailablePolicies();
+    fetchFrequentPlaces();
   }, [device.id]);
 
   const fetchDeviceDetail = async () => {
@@ -661,6 +671,10 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
       if (data.device.google_info?.policyName) {
         setSelectedPolicy(data.device.google_info.policyName);
       }
+      
+      // Actualizar datos de cliente
+      setClientName(data.device.client_name || '');
+      setClientPhone(data.device.client_phone || '');
     } catch (error) {
       console.error('Error obteniendo detalles:', error);
     }
@@ -678,13 +692,89 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
     }
   };
 
+  const fetchFrequentPlaces = async () => {
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/frequent-places`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setFrequentPlaces(data.places || []);
+    } catch (error) {
+      console.error('Error obteniendo lugares frecuentes:', error);
+    }
+  };
+
+  // ===================================================
+  // NUEVO: Guardar información del cliente
+  // ===================================================
+  const handleSaveClientInfo = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/client-info`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_name: clientName,
+          client_phone: clientPhone
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('✅ Información del cliente actualizada');
+        setIsEditingClient(false);
+        if (onRefresh) onRefresh();
+      } else {
+        alert(`Error: ${data.error || 'No se pudo actualizar'}`);
+      }
+    } catch (error) {
+      alert('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===================================================
+  // NUEVO: Solicitar ubicación en tiempo real
+  // ===================================================
+  const handleRequestLocation = async () => {
+    setLocationLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reseller/device/${device.id}/request-location`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.location) {
+          alert(`✅ Ubicación actualizada\n\nLat: ${data.location.latitude}\nLon: ${data.location.longitude}`);
+          fetchDeviceDetail(); // Recargar para ver nueva ubicación
+        } else {
+          alert('⚠️ El dispositivo no reportó ubicación. Puede estar offline o sin GPS activo.');
+        }
+      } else {
+        alert(`Error: ${data.error || 'No se pudo obtener ubicación'}`);
+      }
+    } catch (error) {
+      alert('Error de conexión');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
   const handleChangePolicy = async () => {
     if (!selectedPolicy) {
       alert('Selecciona una política');
       return;
     }
 
-    if (!confirm('¿Cambiar la política de este dispositivo? Los cambios se aplicarán en el próximo sync.')) {
+    if (!confirm('¿Cambiar la política de este dispositivo?')) {
       return;
     }
 
@@ -702,7 +792,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('✅ Política cambiada exitosamente\n\nLos cambios se aplicarán en el próximo sync del dispositivo (puede tomar unos minutos)');
+        alert('✅ Política cambiada exitosamente');
         fetchDeviceDetail();
         if (onRefresh) onRefresh();
       } else {
@@ -716,7 +806,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
   };
 
   const handleReboot = async () => {
-    if (!confirm('¿Reiniciar este dispositivo? El dispositivo se reiniciará remotamente.')) {
+    if (!confirm('¿Reiniciar este dispositivo?')) {
       return;
     }
 
@@ -730,7 +820,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('✅ Comando de reinicio enviado\n\nEl dispositivo se reiniciará en unos momentos.');
+        alert('✅ Comando de reinicio enviado');
       } else {
         alert(`Error: ${data.error || 'No se pudo reiniciar'}`);
       }
@@ -742,6 +832,16 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
   };
 
   const googleInfo = deviceDetail?.google_info;
+  const probableLocation = deviceDetail?.probable_location;
+
+  // Helper para obtener icono de tipo de lugar
+  const getPlaceIcon = (type) => {
+    switch(type) {
+      case 'home': return '🏠';
+      case 'work': return '💼';
+      default: return '📍';
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -750,7 +850,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10">
           <div>
             <h3 className="text-xl font-bold text-gray-800">Detalles del Dispositivo</h3>
-            <p className="text-sm text-gray-600">{device.client_name || 'Sin nombre'}</p>
+            <p className="text-sm text-gray-600">{clientName || 'Sin nombre'}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
@@ -769,6 +869,16 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
               }`}
             >
               📱 Información
+            </button>
+            <button
+              onClick={() => setActiveTab('location')}
+              className={`py-3 px-4 border-b-2 transition-colors ${
+                activeTab === 'location' 
+                  ? 'border-purple-600 text-purple-600 font-semibold' 
+                  : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              📍 Ubicación
             </button>
             <button
               onClick={() => setActiveTab('policy')}
@@ -809,17 +919,79 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
           {/* Tab: Información */}
           {activeTab === 'info' && (
             <>
+              {/* Información del Cliente - CON EDICIÓN */}
               <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-semibold text-gray-800 mb-3">Información del Cliente</h4>
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-semibold text-gray-800">Información del Cliente</h4>
+                  {!isEditingClient ? (
+                    <button
+                      onClick={() => setIsEditingClient(true)}
+                      className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      Editar
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveClientInfo}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                      >
+                        <Save className="w-4 h-4" />
+                        Guardar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingClient(false);
+                          setClientName(device.client_name || '');
+                          setClientPhone(device.client_phone || '');
+                        }}
+                        className="px-3 py-1 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-gray-600">Nombre</p>
-                    <p className="font-medium">{device.client_name || 'N/A'}</p>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      <User className="w-4 h-4 inline mr-1" />
+                      Nombre del Cliente
+                    </label>
+                    {isEditingClient ? (
+                      <input
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Nombre completo"
+                      />
+                    ) : (
+                      <p className="font-medium">{clientName || 'Sin nombre'}</p>
+                    )}
                   </div>
+                  
                   <div>
-                    <p className="text-sm text-gray-600">Teléfono</p>
-                    <p className="font-medium">{device.client_phone || 'N/A'}</p>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      <Phone className="w-4 h-4 inline mr-1" />
+                      Teléfono
+                    </label>
+                    {isEditingClient ? (
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="+54 9 11 1234-5678"
+                      />
+                    ) : (
+                      <p className="font-medium">{clientPhone || 'Sin teléfono'}</p>
+                    )}
                   </div>
+                  
                   <div>
                     <p className="text-sm text-gray-600">IMEI</p>
                     <p className="font-medium font-mono">{device.imei}</p>
@@ -837,6 +1009,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
                 </div>
               </div>
 
+              {/* Android Enterprise Info */}
               {device.google_device_name && googleInfo && !googleInfo.error && (
                 <div className="bg-purple-50 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
@@ -873,38 +1046,136 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
                   </div>
                 </div>
               )}
+            </>
+          )}
 
-              {device.last_location_lat && device.last_location_lon && (
-                <div className="bg-blue-50 rounded-lg p-4">
+          {/* Tab: Ubicación */}
+          {activeTab === 'location' && (
+            <div className="space-y-4">
+              {/* Botón para solicitar ubicación */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-1">Solicitar Ubicación en Tiempo Real</h4>
+                    <p className="text-sm text-blue-800">
+                      Obtén la ubicación actual del dispositivo (requiere GPS activo)
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRequestLocation}
+                    disabled={locationLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    {locationLoading ? 'Solicitando...' : 'Obtener Ubicación'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Ubicación Actual */}
+              {(deviceDetail?.last_location_lat && deviceDetail?.last_location_lon) && (
+                <div className="bg-green-50 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <MapPin className="w-5 h-5" />
-                    Ubicación Actual
+                    <MapPin className="w-5 h-5 text-green-600" />
+                    Última Ubicación Conocida
                   </h4>
                   <div className="grid grid-cols-2 gap-4 mb-3">
                     <div>
                       <p className="text-sm text-gray-600">Latitud</p>
-                      <p className="font-medium">{device.last_location_lat.toFixed(6)}</p>
+                      <p className="font-medium">{deviceDetail.last_location_lat.toFixed(6)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Longitud</p>
-                      <p className="font-medium">{device.last_location_lon.toFixed(6)}</p>
+                      <p className="font-medium">{deviceDetail.last_location_lon.toFixed(6)}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Última Actualización</p>
+                      <p className="font-medium text-xs">
+                        {deviceDetail.last_location_time 
+                          ? new Date(deviceDetail.last_location_time).toLocaleString() 
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    {deviceDetail.battery_level && (
+                      <div>
+                        <p className="text-sm text-gray-600">Batería</p>
+                        <p className="font-medium">{deviceDetail.battery_level}%</p>
+                      </div>
+                    )}
                   </div>
                   <a
-                    href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
+                    href={`https://www.google.com/maps?q=${deviceDetail.last_location_lat},${deviceDetail.last_location_lon}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                   >
                     <Navigation className="w-4 h-4" />
                     Ver en Google Maps
                   </a>
                 </div>
               )}
-            </>
-          )}
 
-          {/* Tab: Política */}
+              {/* Lugares Frecuentes */}
+              {frequentPlaces.length > 0 && (
+                <div className="bg-yellow-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">
+                    🏠 Lugares Frecuentes Detectados
+                  </h4>
+                  <div className="space-y-3">
+                    {frequentPlaces.map((place, idx) => (
+                      <div key={place.id} className="bg-white rounded-lg p-3 border border-yellow-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{getPlaceIcon(place.place_type)}</span>
+                            <div>
+                              <p className="font-semibold text-sm capitalize">
+                                {place.place_type === 'home' ? 'Casa (Probable)' : 
+                                 place.place_type === 'work' ? 'Trabajo (Probable)' : 
+                                 'Lugar Frecuente'}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Visitas: {place.visit_count} | Confianza: {place.confidence_score}%
+                              </p>
+                            </div>
+                          </div>
+                          <a
+                            href={`https://www.google.com/maps?q=${place.latitude},${place.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-700 text-sm"
+                          >
+                            Ver mapa →
+                          </a>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Última visita: {place.last_seen ? new Date(place.last_seen).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 bg-yellow-100 border border-yellow-300 rounded p-2 text-xs text-yellow-800">
+                    💡 Los lugares frecuentes se detectan automáticamente basándose en el historial de ubicaciones del dispositivo.
+                  </div>
+                </div>
+              )}
+
+              {/* Mensaje si no hay ubicación */}
+              {(!deviceDetail?.last_location_lat && !probableLocation) && (
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 mb-3">No hay ubicación disponible</p>
+                  <button
+                    onClick={handleRequestLocation}
+                    disabled={locationLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                  >
+                    Solicitar Ubicación Ahora
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+ {/* Tab: Política */}
           {activeTab === 'policy' && (
             <div className="space-y-4">
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -994,6 +1265,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
                   <li>Bloquear dispositivo (desde la lista principal)</li>
                   <li>Desbloquear con código (desde la lista principal)</li>
                   <li>Liberar dispositivo (desde la lista principal)</li>
+                  <li>Solicitar ubicación (tab de Ubicación)</li>
                 </ul>
               </div>
             </div>
@@ -1233,9 +1505,13 @@ const EnrollDevice = ({ token }) => {
 const DevicesMap = ({ token }) => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDevice, setSelectedDevice] = useState(null);
 
   useEffect(() => {
     fetchDevices();
+    // Actualizar cada 60 segundos
+    const interval = setInterval(fetchDevices, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchDevices = async () => {
@@ -1252,65 +1528,233 @@ const DevicesMap = ({ token }) => {
     }
   };
 
-  const devicesWithLocation = devices.filter(d => d.last_location_lat && d.last_location_lon);
+  // Filtrar dispositivos con ubicación
+  const devicesWithLocation = devices.filter(d => 
+    d.last_location_lat && d.last_location_lon
+  );
+
+  // Calcular centro del mapa (promedio de todas las ubicaciones)
+  const calculateCenter = () => {
+    if (devicesWithLocation.length === 0) return null;
+    
+    const avgLat = devicesWithLocation.reduce((sum, d) => sum + parseFloat(d.last_location_lat), 0) / devicesWithLocation.length;
+    const avgLon = devicesWithLocation.reduce((sum, d) => sum + parseFloat(d.last_location_lon), 0) / devicesWithLocation.length;
+    
+    return { lat: avgLat, lon: avgLon };
+  };
+
+  const center = calculateCenter();
+
+  // Función para determinar color según estado
+  const getMarkerColor = (status) => {
+    switch(status) {
+      case 'ACTIVO': return 'green';
+      case 'BLOQUEADO': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  // Función para obtener tiempo desde última actualización
+  const getTimeSince = (date) => {
+    if (!date) return 'Desconocido';
+    const now = new Date();
+    const then = new Date(date);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Ahora mismo';
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
+    return `Hace ${diffDays} día${diffDays > 1 ? 's' : ''}`;
+  };
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Mapa de Dispositivos</h2>
-        <p className="text-gray-600 mb-6">
-          Dispositivos con ubicación: {devicesWithLocation.length} de {devices.length}
-        </p>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Mapa de Dispositivos</h2>
+            <p className="text-gray-600 mt-1">
+              Dispositivos con ubicación: {devicesWithLocation.length} de {devices.length}
+            </p>
+          </div>
+          <button
+            onClick={fetchDevices}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualizar
+          </button>
+        </div>
 
         {loading ? (
-          <div className="text-center py-12">Cargando...</div>
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            <p className="text-gray-600 mt-2">Cargando dispositivos...</p>
+          </div>
         ) : devicesWithLocation.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No hay dispositivos con ubicación disponible
+          <div className="text-center py-12">
+            <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 mb-4">No hay dispositivos con ubicación disponible</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto text-left">
+              <p className="text-sm text-blue-900 font-semibold mb-2">💡 Para obtener ubicaciones:</p>
+              <ol className="text-sm text-blue-800 list-decimal list-inside space-y-1">
+                <li>Abre los detalles de un dispositivo</li>
+                <li>Ve al tab "📍 Ubicación"</li>
+                <li>Haz clic en "Obtener Ubicación"</li>
+              </ol>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {devicesWithLocation.map(device => (
-              <div key={device.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{device.client_name || 'Sin nombre'}</h3>
-                    <p className="text-sm text-gray-600 font-mono">{device.imei}</p>
-                  </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    device.status === 'ACTIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {device.status}
-                  </span>
+          <>
+            {/* Mapa Embebido de Google Maps */}
+            {center && (
+              <div className="mb-6 rounded-lg overflow-hidden border-2 border-gray-200">
+                <iframe
+                  width="100%"
+                  height="500"
+                  frameBorder="0"
+                  style={{ border: 0 }}
+                  src={`https://www.google.com/maps/embed/v1/view?key=YOUR_GOOGLE_MAPS_API_KEY&center=${center.lat},${center.lon}&zoom=12`}
+                  allowFullScreen
+                  title="Mapa de dispositivos"
+                ></iframe>
+                <div className="bg-yellow-50 border-t-2 border-yellow-200 p-3 text-sm text-yellow-800">
+                  ℹ️ Para ver los marcadores en el mapa, necesitas configurar tu API Key de Google Maps.
+                  Mientras tanto, usa los enlaces directos a Google Maps de cada dispositivo.
                 </div>
-
-                <div className="space-y-2 text-sm mb-4">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <MapPin className="w-4 h-4" />
-                    <span>Lat: {device.last_location_lat.toFixed(6)}, Lon: {device.last_location_lon.toFixed(6)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span>
-                      {device.last_connection ? new Date(device.last_connection).toLocaleString() : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                <a 
-                  href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                >
-                  <Navigation className="w-4 h-4" />
-                  Ver en Google Maps
-                </a>
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* Lista de Dispositivos con Ubicación */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {devicesWithLocation.map(device => {
+                const timeSince = getTimeSince(device.last_location_time);
+                const isRecent = device.last_location_time && 
+                  (new Date() - new Date(device.last_location_time)) < 3600000; // Menos de 1 hora
+
+                return (
+                  <div 
+                    key={device.id} 
+                    className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${
+                      isRecent ? 'border-green-300 bg-green-50' : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                          {device.client_name || 'Sin nombre'}
+                          {isRecent && (
+                            <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">
+                              En línea
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-600 font-mono">{device.imei}</p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        device.status === 'ACTIVO' ? 'bg-green-100 text-green-800' : 
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {device.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-sm mb-4">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <MapPin className="w-4 h-4" />
+                        <span className="font-mono text-xs">
+                          {device.last_location_lat.toFixed(6)}, {device.last_location_lon.toFixed(6)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-600" />
+                        <span className={timeSince.includes('Ahora') || timeSince.includes('min') ? 'text-green-600 font-semibold' : 'text-gray-600'}>
+                          {timeSince}
+                        </span>
+                      </div>
+
+                      {device.battery_level && (
+                        <div className="flex items-center gap-2">
+                          <Battery className="w-4 h-4 text-gray-600" />
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                device.battery_level > 50 ? 'bg-green-500' : 
+                                device.battery_level > 20 ? 'bg-yellow-500' : 
+                                'bg-red-500'
+                              }`}
+                              style={{width: `${device.battery_level}%`}}
+                            ></div>
+                          </div>
+                          <span className="text-gray-600">{device.battery_level}%</span>
+                        </div>
+                      )}
+
+                      {device.last_location_accuracy && (
+                        <div className="flex items-center gap-2 text-gray-600 text-xs">
+                          <span>📍 Precisión: ±{Math.round(device.last_location_accuracy)}m</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <a 
+                        href={`https://www.google.com/maps?q=${device.last_location_lat},${device.last_location_lon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        <Navigation className="w-4 h-4" />
+                        Ver en Maps
+                      </a>
+                      <button
+                        onClick={() => setSelectedDevice(device)}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Detalles
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Leyenda */}
+            <div className="mt-6 bg-gray-50 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">📋 Leyenda</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-600"></div>
+                  <span className="text-gray-700">Dispositivo activo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                  <span className="text-gray-700">Dispositivo bloqueado</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">En línea</span>
+                  <span className="text-gray-700">Ubicación actualizada hace menos de 1 hora</span>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
+
+      {/* Modal de detalles */}
+      {selectedDevice && (
+        <DeviceDetailModal 
+          device={selectedDevice} 
+          token={token}
+          onClose={() => setSelectedDevice(null)}
+          onRefresh={fetchDevices}
+        />
+      )}
     </div>
   );
 };
