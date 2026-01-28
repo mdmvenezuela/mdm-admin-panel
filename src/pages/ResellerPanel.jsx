@@ -3,7 +3,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { 
   Smartphone, Key, Activity, Plus, Lock, Unlock, MapPin, Search, X, 
   QrCode, Trash2, Eye, AlertCircle, Battery, Wifi, Clock, Navigation,
-  RefreshCw, Shield, Settings, Zap
+  RefreshCw, Shield, Settings, Zap, Edit2, Save, User, Phone
 } from 'lucide-react';
 
 // Configuración de la API
