@@ -744,7 +744,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
   const handleRequestLocation = async () => {
     setLocationLoading(true);
     try {
-      const response = await fetch(`${API_URL}/reseller/device/${device.id}/request-location`, {
+      const response = await fetch(`${API_URL}/reseller/device/${device.google_device_name}/request-location`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -780,7 +780,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/reseller/device/${device.id}/change-policy`, {
+      const response = await fetch(`${API_URL}/reseller/device/${device.google_device_name}/change-policy`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -812,7 +812,7 @@ const DeviceDetailModal = ({ device, token, onClose, onRefresh }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/reseller/device/${device.id}/reboot`, {
+      const response = await fetch(`${API_URL}/reseller/device/${device.google_device_name}/reboot`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
