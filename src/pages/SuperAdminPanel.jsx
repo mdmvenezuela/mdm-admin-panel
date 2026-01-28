@@ -33,6 +33,7 @@ const SuperAdminPanel = () => {
           {currentView === 'devices' && <Devices token={token} />}
           {currentView === 'policies' && <PolicyManagement token={token} />}
           {currentView === 'statistics' && <Statistics token={token} />}
+            {currentView === 'managedPlay' && <ManagedPlay />}
         </div>
       </div>
     </div>
@@ -137,7 +138,8 @@ const Sidebar = ({ currentView, setCurrentView, onLogout }) => {
     { id: 'resellers', icon: Users, label: 'Financieras' },
     { id: 'devices', icon: Smartphone, label: 'Dispositivos' },
      { id: 'policies', icon: Shield, label: 'Políticas' },
-    { id: 'statistics', icon: BarChart3, label: 'Estadísticas' }
+    { id: 'statistics', icon: BarChart3, label: 'Estadísticas' },
+    { id: 'managedPlay', icon: Smartphone, label: 'Managed Play' }
   ];
 
   return (
@@ -782,6 +784,29 @@ const Statistics = ({ token }) => {
       <div className="text-gray-600 text-center py-12">
         <p>Próximamente: Gráficas avanzadas, reportes y análisis detallado</p>
       </div>
+    </div>
+  );
+};
+
+// Managed Google Play
+const ManagedPlay = () => {
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-0 overflow-hidden">
+      <div className="p-6 border-b">
+        <h2 className="text-xl font-bold text-gray-800">
+          Managed Google Play
+        </h2>
+        <p className="text-gray-600 text-sm mt-1">
+          Administración de aplicaciones empresariales
+        </p>
+      </div>
+
+      <iframe
+        src="https://play.google.com/work"
+        title="Managed Google Play"
+        className="w-full"
+        style={{ height: 'calc(100vh - 220px)', border: 'none' }}
+      />
     </div>
   );
 };
