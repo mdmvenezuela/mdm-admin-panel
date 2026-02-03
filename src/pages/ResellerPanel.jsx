@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import QRCode from "react-qr-code";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { 
   Smartphone, Key, Activity, Plus, Lock, Unlock, MapPin, Search, X, 
@@ -1457,15 +1458,30 @@ const EnrollDevice = ({ token }) => {
 
             <div className="border-4 border-purple-200 rounded-lg p-8 bg-white">
               <div className="flex justify-center">
-                <img 
-                  src={qrData.qr} 
-                  alt="QR Code" 
-                  className="w-80 h-80"
-                />
+                <div className="flex justify-center bg-white p-6 rounded-lg">
+  <QRCode
+    value={JSON.stringify(qrData.provisioning_data)}
+    size={280}
+    level="M"
+  />
+</div>
               </div>
             </div>
 
-            
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Token:</span>
+                <span className="font-mono text-gray-800">{qrData.token.substring(0, 20)}...</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Licencia:</span>
+                <span className="font-mono text-gray-800">{qrData.license_key}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Expira:</span>
+                <span className="text-gray-800">{new Date(qrData.expires_at).toLocaleString()}</span>
+              </div>
+            </div>
 
             <div className="flex gap-3">
               <button
